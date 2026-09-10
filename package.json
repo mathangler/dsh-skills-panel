@@ -1,6 +1,6 @@
 {
   "name": "dsh-skills-panel",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A Skills settings panel for DeepSeek Harness: browse global and per-project skills, search and install from skills.sh, toggle model invocation per skill, and check for updates without a GitHub token.",
   "type": "module",
   "main": "lib/index.js",
