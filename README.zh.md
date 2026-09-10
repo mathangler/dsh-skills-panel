@@ -81,11 +81,11 @@ dsh plugin --profile web remove dsh-skills-panel
 
 安装**不走** GitHub REST API，因此不需要 token，也不受匿名每小时 60 次的限制：
 
-1. `git ls-remote --symref` 解析仓库默认分支（失败则退回 `main`、`master`）
-2. `curl` 下载 `codeload.github.com/<repo>/tar.gz/<branch>`
-3. `tar` 解压到 profile 目录下的短期缓存
-4. 在解压树里定位"名字等于技能 id、且确实含有 SKILL.md"的目录，**整个**拷贝出来
-   —— 包含子目录、脚本和资源文件
+1. 从 `codeload.github.com/<repo>/tar.gz/<ref>` 拉取压缩包，先试 `HEAD`（因此
+   **不需要 git**），失败再试 `main`、`master`
+2. `tar` 解压到系统临时目录下的短期缓存
+3. 在解压树里定位"名字等于技能 id、且确实含有 SKILL.md"的目录
+4. 用 `fs.cp` **整个**拷贝出来 —— 逐字节复制，脚本、图片等二进制资源同样完整保留
 
 描述、详情预览和更新检查都从这个解压树读取，因此完全不依赖
 `raw.githubusercontent.com`。在那些 codeload 通、raw 不通的网络环境下，这一点是决定性的。
@@ -97,10 +97,11 @@ dsh plugin --profile web remove dsh-skills-panel
 
 ## 平台说明
 
-- **面向 Windows。** 安装/卸载的驱动脚本使用 PowerShell、`curl.exe` 和 `tar.exe`。
-  macOS 与 Linux 未经验证。
-- "导入为复制"路径遇到已知二进制扩展名会跳过并报告；仓库安装路径不受此限，
-  因为它用 `Copy-Item` 而不是只能写文本的 fs 服务。
+- **Windows、macOS、Linux 同一套代码。** 没有 shell 脚本、没有 PowerShell：整条流水线
+  都是 Node —— `fetch`、`fs.cp`、`fs.symlink`、`fs.rm` —— 三平台行为一致。Windows 的
+  junction 和 POSIX 的符号链接都由 `fs.symlink` 创建，两者都不需要提权。
+- **唯一的外部工具是 `tar`。** macOS、Linux 自带，Windows 10 (1803) 及以后也自带。
+  不需要 `git`，不需要 `curl`，也不需要 PowerShell。
 - 更新检查**只比对 SKILL.md 内容**。如果上游只改了附带文件，面板会显示"已是最新"。
   这是为了让检查保持廉价而有意做的取舍。
 

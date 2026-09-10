@@ -94,13 +94,13 @@ dsh plugin --profile web remove dsh-skills-panel
 Installing does **not** use the GitHub REST API, so it needs no token and is not
 subject to the 60-requests-per-hour anonymous limit:
 
-1. `git ls-remote --symref` resolves the repository's default branch (falling
-   back to `main`, then `master`).
-2. `curl` downloads `codeload.github.com/<repo>/tar.gz/<branch>`.
-3. `tar` extracts it into a short-lived cache under the profile directory.
-4. The skill directory is located by finding the folder named after the skill id
-   that actually contains a `SKILL.md`, and is copied out **whole** — including
-   subdirectories, scripts and assets.
+1. The archive is fetched from `codeload.github.com/<repo>/tar.gz/<ref>` — trying
+   `HEAD` first, so **no `git` is required**, then `main`, then `master`.
+2. `tar` extracts it into a short-lived cache in the system temp directory.
+3. The skill directory is located by finding the folder named after the skill id
+   that actually contains a `SKILL.md`.
+4. `fs.cp` copies it out **whole** — byte for byte, so scripts, images and other
+   binary assets come along intact.
 
 Descriptions, previews and update checks read from that same extracted tree, so
 `raw.githubusercontent.com` is never required. That matters on networks where it
@@ -115,11 +115,12 @@ still show the skill, but will not offer updates for it.
 
 ## Platform notes
 
-- **Windows-first.** The install/uninstall driver uses PowerShell, `curl.exe` and
-  `tar.exe`. macOS and Linux are untested.
-- Binary files are only copied by the **import as copy** path if their extension
-  is not in the known-binary list; the repository install path copies everything
-  because it uses `Copy-Item` rather than the text-only fs service.
+- **Windows, macOS and Linux.** There is no shell script and no PowerShell: the
+  whole pipeline is Node — `fetch`, `fs.cp`, `fs.symlink`, `fs.rm` — which
+  behaves the same on all three. A Windows junction and a POSIX symlink are both
+  created with `fs.symlink`, so neither needs elevation.
+- **`tar` is the only external tool.** It ships with macOS and Linux, and with
+  Windows 10 (1803) and later. You do not need `git`, `curl` or PowerShell.
 - The update check compares **SKILL.md content only**. If upstream changes only
   an auxiliary file, the panel reports "up to date". This is a deliberate
   trade-off to keep update checks cheap.
