@@ -33,8 +33,10 @@ model context, and get told when an installed skill changes upstream.
 
 **Find & install tab**
 
-- Searches skills.sh, shows the upstream description, and previews the SKILL.md
-  plus the exact destination before you commit.
+- Searches skills.sh and gives each result a **GitHub** and a **skills.sh**
+  entry point, so you can inspect it yourself before committing.
+  The panel downloads nothing on its own: a skill you have not confirmed never
+  lands on this machine, not even a byte.
 - Results you already have are badged **already installed** and offer
   **Reinstall** instead of **Install**.
 - Installs to the global skills root or to the current project (`.dsh/skills`).
@@ -102,9 +104,14 @@ subject to the 60-requests-per-hour anonymous limit:
 4. `fs.cp` copies it out **whole** — byte for byte, so scripts, images and other
    binary assets come along intact.
 
-Descriptions, previews and update checks read from that same extracted tree, so
-`raw.githubusercontent.com` is never required. That matters on networks where it
-is unreachable while `codeload` works.
+**Install and check-for-updates take that pipeline; nothing else does.** Both are
+actions you asked for by name. Searching sends no request for a skill's content,
+which is the point: a stranger's repository should not appear on your disk before
+you have decided anything.
+
+The pipeline needs only `codeload.github.com`, never
+`raw.githubusercontent.com`. That matters on networks where `raw` is unreachable
+while `codeload` works.
 
 Each installed skill is recorded in `.skills-panel.json` in its skills root with
 its repository, branch, in-repo path and a content hash. The manifest is what
