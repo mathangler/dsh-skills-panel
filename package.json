@@ -20,6 +20,9 @@
     "README.zh.md",
     "LICENSE"
   ],
+  "scripts": {
+    "check": "node tools/host-core-check.mjs"
+  },
   "license": "MIT",
   "keywords": [
     "dsh",
