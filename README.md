@@ -28,8 +28,11 @@ model context, and get told when an installed skill changes upstream.
 - **View** expands the skill's SKILL.md inline.
 - **Remove** deletes the skill folder, or only the link when the skill is a
   junction (a plain `rmdir` cannot follow a junction into its target).
-- **Check all for updates** compares every panel-installed skill against its
-  repository and marks the ones that changed.
+- **Check all for updates** compares every tracked skill against its repository
+  and marks the ones that changed.
+- A skill the panel did not install — one copied in, or installed by a script —
+  offers **Track source**: tell the panel which repository it came from and it
+  takes part in checks and updates like any other. See **Updates** below.
 
 **Find & install tab**
 
@@ -50,10 +53,18 @@ model context, and get told when an installed skill changes upstream.
 
 **Updates**
 
-- Once per page load, in the background, every panel-installed skill is checked
-  against its repository. Changed skills get a dot and a chip, and the tab title
-  gains a count.
-- **Update** re-checks first and does nothing when the skill has not changed.
+- Once per page load, in the background, every tracked skill is checked against
+  its repository. Changed skills get a dot and a chip, and the tab title gains a
+  count.
+- **Update** re-checks first and does nothing at all when upstream has not
+  moved — including leaving a locally edited copy untouched.
+- If the local copy no longer matches the baseline it was installed with, the
+  panel will not replace it silently: it asks first.
+- **Track source** is for skills that came from somewhere other than this panel.
+  Search skills.sh by the skill's name and pick the entry, or type `owner/repo`.
+  The panel then locates the SKILL.md in that repository and **shows you what it
+  found** before anything is written. Attaching baselines what you already have,
+  so your own revisions are not immediately reported as a pending update.
 
 ---
 
@@ -113,10 +124,17 @@ The pipeline needs only `codeload.github.com`, never
 `raw.githubusercontent.com`. That matters on networks where `raw` is unreachable
 while `codeload` works.
 
-Each installed skill is recorded in `.skills-panel.json` in its skills root with
-its repository, branch, in-repo path and a content hash. The manifest is what
-makes update checks and clean removals possible; delete it and the panel will
-still show the skill, but will not offer updates for it.
+Each tracked skill is recorded in `.skills-panel.json` in its skills root with
+its repository, branch, in-repo path and a digest of the **whole skill folder** —
+relative paths plus a content hash per file, sorted and combined into one value.
+The manifest is what makes update checks and clean removals possible; delete it
+and the panel will still show the skill, but will not offer updates for it unless
+you track a source again.
+
+The digest answers two questions from one baseline: **has upstream moved**, and
+**has this copy been edited**. The second is why an update asks before replacing
+anything. A record written by an older version (which hashed SKILL.md alone) is
+re-baselined to the current local copy on its first check, and marked `rebased`.
 
 ---
 
@@ -128,9 +146,12 @@ still show the skill, but will not offer updates for it.
   created with `fs.symlink`, so neither needs elevation.
 - **`tar` is the only external tool.** It ships with macOS and Linux, and with
   Windows 10 (1803) and later. You do not need `git`, `curl` or PowerShell.
-- The update check compares **SKILL.md content only**. If upstream changes only
-  an auxiliary file, the panel reports "up to date". This is a deliberate
-  trade-off to keep update checks cheap.
+- The update check covers **the whole skill folder**, not just `SKILL.md`, so a
+  release that only touches `scripts/` or a bundled asset is still noticed. The
+  digest is path-sorted and separator-normalised, so it is identical on all three
+  platforms.
+- Tests live in `test/` and are not part of the published package:
+  `node test/host-core.test.mjs` and `node test/client-load.test.mjs`.
 
 ---
 

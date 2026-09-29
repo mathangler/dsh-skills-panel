@@ -1,7 +1,7 @@
 {
   "name": "dsh-skills-panel",
-  "version": "0.1.4",
-  "description": "A Skills settings panel for DeepSeek Harness: browse global and per-project skills, search and install from skills.sh, toggle model invocation per skill, and check for updates without a GitHub token.",
+  "version": "0.2.0",
+  "description": "A Skills settings panel for DeepSeek Harness: browse global and per-project skills, search and install from skills.sh, toggle model invocation per skill, attach any skill back to its repository so it can be checked for updates, and update without a GitHub token.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -21,7 +21,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "check": "node tools/host-core-check.mjs"
+    "check": "node tools/host-core-check.mjs && node test/track-source.test.mjs && node test/client-load.test.mjs"
   },
   "license": "MIT",
   "keywords": [
