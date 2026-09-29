@@ -58,6 +58,9 @@ model context, and get told when an installed skill changes upstream.
   count.
 - **Update** re-checks first and does nothing at all when upstream has not
   moved — including leaving a locally edited copy untouched.
+- The auto/manual model-invocation switch is a setting, not content: flipping it
+  never shows up as an edit, never manufactures an update, and **survives an
+  update** rather than being reset by it.
 - If the local copy no longer matches the baseline it was installed with, the
   panel will not replace it silently: it asks first.
 - **Track source** is for skills that came from somewhere other than this panel.
@@ -133,8 +136,16 @@ you track a source again.
 
 The digest answers two questions from one baseline: **has upstream moved**, and
 **has this copy been edited**. The second is why an update asks before replacing
-anything. A record written by an older version (which hashed SKILL.md alone) is
-re-baselined to the current local copy on its first check, and marked `rebased`.
+anything. A record written by an older version — one that hashed SKILL.md alone,
+or that digested the invocation flag — is re-baselined to the current local copy
+on its first check, and marked `rebased`.
+
+`disable-model-invocation` in SKILL.md is the one thing left out of the digest,
+because it is this panel's own switch rather than part of the skill. Counting it
+made flipping a switch read as an edit, and a baseline captured through one
+disagreed for good with every repository that does not ship the flag: an update
+that updating could never clear. The setting is carried across a reinstall
+instead, so refreshing a skill no longer resets it.
 
 ---
 

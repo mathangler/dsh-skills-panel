@@ -121,6 +121,7 @@ async function catalogue(dir, source) {
       invocation: { modelInvocable: true, userInvocable: true },
       source,
       provider: 'filesystem',
+      path: join(dir, entry.name, 'SKILL.md'),
       resourceBase: { kind: 'directory', path: join(dir, entry.name) },
       _declared: parse(text).name,
     });
@@ -205,7 +206,7 @@ await define('acme/one', {
 let h = handlers();
 let r = await h.install({ source: 'acme/one', skillId: 'one', target: 'global' });
 check('install succeeds', r.ok === true && r.dir === join(globalRoot, 'one'), r.error);
-check('the record is stamped v2', (await manifest(globalRoot)).skills.one.hashVersion === 2);
+check('the record is stamped with the current digest version', (await manifest(globalRoot)).skills.one.hashVersion === 3);
 check('and counts the files it copied', (await manifest(globalRoot)).skills.one.fileCount === 2,
   String((await manifest(globalRoot)).skills.one.fileCount));
 
@@ -248,7 +249,7 @@ let adopted = await h.adopt({ name: 'plain', source: 'acme/plain', skillId: 'pla
 check('phase two attaches it', adopted.ok === true && adopted.adopted === true, adopted.error);
 let rec = (await manifest(globalRoot)).skills.plain;
 check('the record carries the repository', rec.source === 'acme/plain');
-check('the record is stamped v2 and marked adopted', rec.hashVersion === 2 && rec.adopted === true);
+check('the record is stamped at the current version and marked adopted', rec.hashVersion === 3 && rec.adopted === true);
 check('the baseline is what is on disk, so nothing is pending',
   (await h['check-updates']({})).updates.plain.status === 'current');
 
@@ -288,6 +289,42 @@ check('with no upstream change an update does nothing at all',
 check('and leaves the local edit alone',
   (await readFile(join(globalRoot, 'plain', 'scripts', 'b.mjs'), 'utf8')).includes('keep'));
 
+// ── the panel's own switch is a setting, not content ───────────────────────
+console.log("\n== the panel's own switch is not a content edit");
+await define('acme/toggle', {
+  'skills/toggle/SKILL.md': '---\nname: toggle\ndescription: toggle skill.\n---\n\nToggle body.\n',
+});
+h = handlers();
+r = await h.install({ source: 'acme/toggle', skillId: 'toggle', target: 'global' });
+check('the skill installs', r.ok === true, r.error);
+
+const off = await h['set-enabled']({ name: 'toggle', enabled: false });
+check('the switch flips', off.ok === true, off.error);
+const readToggle = () => readFile(join(globalRoot, 'toggle', 'SKILL.md'), 'utf8');
+check('and writes the flag', (await readToggle()).includes('disable-model-invocation: true'));
+
+h = handlers();
+up = await h['check-updates']({});
+// Digesting that line made a flipped switch read as an edit, and a baseline
+// captured through one disagreed for good with repositories that omit it.
+check('flipping it is not a local edit', up.updates.toggle.locallyModified === false);
+check('and does not invent an update', up.updates.toggle.status === 'current', up.updates.toggle.status);
+const idle = await h.update({ name: 'toggle' });
+check('so an update is a plain no-op', idle.ok === true && idle.upToDate === true, JSON.stringify(idle));
+
+await upstream('acme/toggle', 'skills/toggle/SKILL.md',
+  '---\nname: toggle\ndescription: toggle skill.\n---\n\nToggle body v2.\n');
+h = handlers();
+up = await h['check-updates']({});
+check('a real change is still an update', up.updates.toggle.status === 'update', up.updates.toggle.status);
+check('and is not blocked as a local edit', up.updates.toggle.locallyModified === false);
+
+const repainted = await h.update({ name: 'toggle' });
+check('the update applies without a second confirmation',
+  repainted.ok === true && repainted.upToDate === false, repainted.error);
+check('the new body arrived', (await readToggle()).includes('Toggle body v2'));
+check('and the switch was carried across', (await readToggle()).includes('disable-model-invocation: true'));
+
 console.log('\n== an update lands back where the skill lives');
 await define('acme/proj', { 'skills/proj/SKILL.md': '---\nname: proj\ndescription: proj skill.\n---\n\nProj v1.\n' });
 h = handlers();
@@ -318,7 +355,7 @@ await writeFile(join(globalRoot, '.skills-panel.json'), JSON.stringify(mf, null,
 h = handlers();
 up = await h['check-updates']({});
 rec = (await manifest(globalRoot)).skills.one;
-check('the old record is upgraded', rec.hashVersion === 2, String(rec.hashVersion));
+check('the old record is upgraded', rec.hashVersion === 3, String(rec.hashVersion));
 check('it is marked re-baselined', rec.rebased === true);
 check('the stale SKILL.md hash is gone', rec.hash !== 'deadbeef');
 check('the copy now counts as unmodified', up.updates.one.locallyModified === false);
