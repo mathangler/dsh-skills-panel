@@ -359,6 +359,10 @@ check('the old record is upgraded', rec.hashVersion === 3, String(rec.hashVersio
 check('it is marked re-baselined', rec.rebased === true);
 check('the stale SKILL.md hash is gone', rec.hash !== 'deadbeef');
 check('the copy now counts as unmodified', up.updates.one.locallyModified === false);
+check('and it gains an upstream baseline of its own',
+  typeof rec.upstreamHash === 'string' && rec.upstreamHash !== '');
+check('a digest another version wrote is not read as an upstream release',
+  up.updates.one.status === 'current', up.updates.one.status);
 
 console.log('');
 if (failed.length > 0) {

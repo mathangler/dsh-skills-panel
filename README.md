@@ -128,24 +128,41 @@ The pipeline needs only `codeload.github.com`, never
 while `codeload` works.
 
 Each tracked skill is recorded in `.skills-panel.json` in its skills root with
-its repository, branch, in-repo path and a digest of the **whole skill folder** —
-relative paths plus a content hash per file, sorted and combined into one value.
-The manifest is what makes update checks and clean removals possible; delete it
-and the panel will still show the skill, but will not offer updates for it unless
-you track a source again.
+its repository, branch, in-repo path and two digests of the **whole skill
+folder** — relative paths plus a content hash per file, sorted and combined into
+one value. The manifest is what makes update checks and clean removals possible;
+delete it and the panel will still show the skill, but will not offer updates for
+it unless you track a source again.
 
-The digest answers two questions from one baseline: **has upstream moved**, and
-**has this copy been edited**. The second is why an update asks before replacing
-anything. A record written by an older version — one that hashed SKILL.md alone,
-or that digested the invocation flag — is re-baselined to the current local copy
-on its first check, and marked `rebased`.
+The two digests answer one question each, from separate baselines. `hash` covers
+the copy on disk, so **has this copy been edited** — which is why an update asks
+before replacing anything. `upstreamHash` covers what the repository published
+when that copy was installed, so **has upstream moved**. Only the second decides
+the update badge, and only upstream can move it: a switch flip, a hand edit, or a
+baseline some other installation rewrote in its own format cannot manufacture an
+update, and cannot silence a real one for longer than the check that rebuilt the
+baseline.
 
-`disable-model-invocation` in SKILL.md is the one thing left out of the digest,
+A record whose baselines an older version wrote — one that hashed SKILL.md alone,
+or that digested the invocation flag — is re-baselined on its first check and
+marked `rebased`. The upstream baseline there is taken from the repository, not
+from your copy, unless the copy is one this panel installed and nothing has
+edited since; reading it off local content whose provenance is unknown is what
+turned a local change into a permanent, unapplyable "update available".
+
+`disable-model-invocation` in SKILL.md is the one thing left out of both digests,
 because it is this panel's own switch rather than part of the skill. Counting it
 made flipping a switch read as an edit, and a baseline captured through one
 disagreed for good with every repository that does not ship the flag: an update
 that updating could never clear. The setting is carried across a reinstall
 instead, so refreshing a skill no longer resets it.
+
+Two DSH installations can share one skills root — a desktop app and a `dsh web`
+server, say — and then they share this manifest. Each writes its own record in
+the same shape, so the two agree; a plugin update only takes effect in a process
+that restarts, and until it does, the half still running an older copy reports
+its own verdicts from the code it loaded. Those verdicts are now the only thing
+it can get wrong: it can no longer move another installation's answer.
 
 ---
 
@@ -161,8 +178,10 @@ instead, so refreshing a skill no longer resets it.
   release that only touches `scripts/` or a bundled asset is still noticed. The
   digest is path-sorted and separator-normalised, so it is identical on all three
   platforms.
-- Tests live in `test/` and are not part of the published package:
-  `node test/host-core.test.mjs` and `node test/client-load.test.mjs`.
+- Tests live in `test/` and are not part of the published package: `node
+  test/upstream-baseline.test.mjs` (what the update check may and may not answer
+  for), `node test/track-source.test.mjs` and `node test/client-load.test.mjs`.
+  `npm run check` runs those and `tools/host-core-check.mjs`.
 
 ---
 
