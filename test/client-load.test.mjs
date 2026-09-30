@@ -170,6 +170,30 @@ check('the dead dictionary keys stay gone',
 check('both languages carry the new keys',
   src.includes("track: 'Track source'") && src.includes("track: '关联来源'"));
 
+// ── the switch is the shared DSH primitive ──────────────────────────────────
+// A skills row's toggle sits beside toggles the plugin panel draws with
+// `@deepseek-ai/dsh-client-ui-primitives`. This panel cannot import it — only
+// React and the baseline seeds resolve — so the copy has to be checked instead.
+console.log('\n--- the switch matches the shared primitive ---');
+check('geometry matches Switch.module.css',
+  sheet.includes('.dshsk-switch{box-sizing:border-box;position:relative;flex:0 0 auto;'
+    + 'width:36px;height:20px;padding:2px;border:0;border-radius:999px;corner-shape:round;'));
+check('the unchecked track is the primitive colour',
+  sheet.includes('background:var(--dsw-alias-border-l3);cursor:pointer}'));
+check('the checked track is the brand colour',
+  sheet.includes('.dshsk-switch[aria-checked="true"]{background:var(--dsw-alias-brand-primary)}'));
+check('the thumb is the primitive thumb',
+  sheet.includes('.dshsk-thumb{display:block;width:16px;height:16px;border-radius:50%;corner-shape:round;'));
+check('the unchecked thumb uses the switch token', sheet.includes('--dsw-alias-switch-thumb'));
+check('the checked thumb travels 16px', sheet.includes('transform:translateX(16px)') && sheet.includes('120ms ease'));
+check('the focus ring is the global one',
+  sheet.includes('outline:var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color'));
+check('a busy switch dims like the primitive',
+  sheet.includes('.dshsk-switch:disabled{cursor:default;opacity:.5}'));
+check('state rides on aria-checked, and no parallel class survived',
+  sheet.includes('[aria-checked="true"]') && !sheet.includes('dshsk-switch-on') && !sheet.includes('dshsk-knob'));
+check('a write in flight disables the control', src.includes('disabled: toggleBusy === s.name'));
+
 // ── nav marking ─────────────────────────────────────────────────────────────
 console.log('\n--- nav marking ---');
 check('marks the row labelled in the active locale', ourRowZh.attrs.has(NAV));
