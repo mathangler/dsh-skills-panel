@@ -53,9 +53,15 @@ model context, and get told when an installed skill changes upstream.
 
 **Updates**
 
-- Once per page load, in the background, every tracked skill is checked against
-  its repository. Changed skills get a dot and a chip, and the tab title gains a
-  count.
+- **A check downloads nothing.** It asks GitHub for commit ids: one request per
+  repository says whether anything in it moved at all, and a skill directory's
+  last commit says whether that skill moved. Content is fetched only when you
+  install or update.
+  On the slow link this was built for, eight repositories went from 26.8 MB and
+  about four and a half minutes to roughly 40 KB and a few seconds.
+- Once per page load, in the background, every tracked skill is checked. A
+  result stands for ten minutes, so reloading the page asks nothing; the panel
+  shows how old its answer is.
 - **Update** re-checks first and does nothing at all when upstream has not
   moved — including leaving a locally edited copy untouched.
 - The auto/manual model-invocation switch is a setting, not content: flipping it
@@ -68,6 +74,10 @@ model context, and get told when an installed skill changes upstream.
   The panel then locates the SKILL.md in that repository and **shows you what it
   found** before anything is written. Attaching baselines what you already have,
   so your own revisions are not immediately reported as a pending update.
+- Unauthenticated GitHub allows 60 requests an hour, which a few checks exhaust.
+  Set `GITHUB_TOKEN` — or simply be logged in to `gh`, which the panel asks when
+  the budget runs out — for 5000. A spent budget is reported, never silently
+  worked around by downloading archives.
 
 ---
 
@@ -118,21 +128,27 @@ subject to the 60-requests-per-hour anonymous limit:
 4. `fs.cp` copies it out **whole** — byte for byte, so scripts, images and other
    binary assets come along intact.
 
-**Install and check-for-updates take that pipeline; nothing else does.** Both are
-actions you asked for by name. Searching sends no request for a skill's content,
-which is the point: a stranger's repository should not appear on your disk before
-you have decided anything.
+**Installs and updates take that pipeline; a check does not.** Installing is an
+action you asked for by name. Searching sends no request for a skill's content,
+and a check reads commit ids rather than archives — a stranger's repository
+should not appear on your disk before you have decided anything.
 
-The pipeline needs only `codeload.github.com`, never
-`raw.githubusercontent.com`. That matters on networks where `raw` is unreachable
-while `codeload` works.
+The pipeline needs `codeload.github.com` for content and `api.github.com` for
+commit ids, never `raw.githubusercontent.com`. That matters on networks where
+`raw` is unreachable while the other two work. If `api.github.com` cannot answer
+at all, the check falls back to comparing archives: slower, but still correct.
 
 Each tracked skill is recorded in `.skills-panel.json` in its skills root with
-its repository, branch, in-repo path and two digests of the **whole skill
-folder** — relative paths plus a content hash per file, sorted and combined into
-one value. The manifest is what makes update checks and clean removals possible;
-delete it and the panel will still show the skill, but will not offer updates for
-it unless you track a source again.
+its repository, branch, in-repo path, the commit ids the last check compared
+against, and two digests of the **whole skill folder** — relative paths plus a
+content hash per file, sorted and combined into one value. The manifest is what
+makes update checks and clean removals possible; delete it and the panel will
+still show the skill, but will not offer updates for it unless you track a source
+again.
+
+`repoHead` and `skillSha` are what the cheap check reads: the repository tip and
+the last commit touching the skill's own directory. `upstreamHash` is the same
+question answered by content, kept so the archive fallback still works.
 
 The two digests answer one question each, from separate baselines. `hash` covers
 the copy on disk, so **has this copy been edited** — which is why an update asks
@@ -173,14 +189,17 @@ it can get wrong: it can no longer move another installation's answer.
   behaves the same on all three. A Windows junction and a POSIX symlink are both
   created with `fs.symlink`, so neither needs elevation.
 - **`tar` is the only external tool.** It ships with macOS and Linux, and with
-  Windows 10 (1803) and later. You do not need `git`, `curl` or PowerShell.
+  Windows 10 (1803) and later. You do not need `git`, `curl` or PowerShell. `gh`
+  is asked for a token only when the unauthenticated budget runs out, and its
+  absence is not an error.
 - The update check covers **the whole skill folder**, not just `SKILL.md`, so a
   release that only touches `scripts/` or a bundled asset is still noticed. The
   digest is path-sorted and separator-normalised, so it is identical on all three
   platforms.
 - Tests live in `test/` and are not part of the published package: `node
-  test/upstream-baseline.test.mjs` (what the update check may and may not answer
-  for), `node test/track-source.test.mjs` and `node test/client-load.test.mjs`.
+  test/cheap-check.test.mjs` (a check downloads nothing), `node
+  test/upstream-baseline.test.mjs` (what the check may and may not answer for),
+  `node test/track-source.test.mjs` and `node test/client-load.test.mjs`.
   `npm run check` runs those and `tools/host-core-check.mjs`.
 
 ---

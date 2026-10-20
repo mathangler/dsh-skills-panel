@@ -194,6 +194,21 @@ check('state rides on aria-checked, and no parallel class survived',
   sheet.includes('[aria-checked="true"]') && !sheet.includes('dshsk-switch-on') && !sheet.includes('dshsk-knob'));
 check('a write in flight disables the control', src.includes('disabled: toggleBusy === s.name'));
 
+// ── the check asks, it does not download ────────────────────────────────────
+// Reported symptom: a check took four and a half minutes on a slow link because
+// it downloaded every tracked repository to compare content.
+console.log('\n--- the update check is cheap ---');
+check('the background check reuses a recent answer',
+  src.includes("check-updates', { projectPath: sc, reuse: true }"));
+check('the button asks for a fresh answer',
+  src.includes("check-updates', { projectPath: pp, force: true }"));
+check('the panel says how old its answer is', src.includes("tt('lastCheck')") && src.includes('lastCheckText'));
+check('and counts the age in minutes rather than staying silent',
+  src.includes("tt('minutesAgo')") && src.includes('60000'));
+check('both languages describe the cheap check',
+  src.includes("autoHint: 'Checks compare commit ids, so nothing is downloaded.'")
+    && src.includes('检查只比对提交编号'));
+
 // ── nav marking ─────────────────────────────────────────────────────────────
 console.log('\n--- nav marking ---');
 check('marks the row labelled in the active locale', ourRowZh.attrs.has(NAV));
