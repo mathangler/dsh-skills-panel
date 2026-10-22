@@ -142,6 +142,14 @@ commit ids, never `raw.githubusercontent.com`. That matters on networks where
 `raw` is unreachable while the other two work. If `api.github.com` cannot answer
 at all, the check falls back to comparing archives: slower, but still correct.
 
+Search reads `skills.sh` directly rather than through the `web` capability. That
+capability is a deployment choice, and the choice can change what a body *is*: a
+profile pointing `fetchProvider` at a service that converts pages to Markdown
+gets that service's rendering of a JSON document — every `{ [ : , /` and `"`
+escaped — which no JSON parser accepts. Reading a JSON API directly is the same
+rule the archive pipeline already follows. The capability is still used as a
+fallback, for a deployment whose egress only reaches through it.
+
 Each tracked skill is recorded in `.skills-panel.json` in its skills root with
 its repository, branch, in-repo path, the commit ids the last check compared
 against, and two digests of the **whole skill folder** — relative paths plus a
