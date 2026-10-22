@@ -107,9 +107,48 @@ check('the title is not just the package name',
 check('the description is not the package.json one verbatim',
   en.description !== pkg.description);
 
+console.log('\n--- the icon is declared, shipped and self-contained ---');
+// DSH inlines the image as a base64 data URL, so anything it references
+// externally simply would not render. A missing or malformed file is not fatal
+// either: the panel substitutes its own generic artwork, which again looks like
+// nothing is wrong.
+const MAX_ICON_BYTES = 256 * 1024;
+check('package.json declares an icon', typeof pkg.icon === 'string' && pkg.icon !== '', String(pkg.icon));
+check('the declared path is relative, so it cannot leave the package',
+  typeof pkg.icon === 'string' && !pkg.icon.startsWith('/') && !/^[a-zA-Z]+:/.test(pkg.icon)
+    && !pkg.icon.split('/').includes('..'), String(pkg.icon));
+check('exports the icon resource', pkg.exports !== undefined && pkg.exports['./icon'] !== undefined);
+check('files ships the icon',
+  Array.isArray(pkg.files) && pkg.files.some((f) => f === 'icon.svg' || f === './icon.svg'),
+  JSON.stringify(pkg.files));
+
+let svg = '';
+try {
+  svg = readFileSync(new URL(String(pkg.icon).replace(/^\.\//, ''), dir), 'utf8');
+} catch (e) {
+  svg = '';
+}
+check('the icon file exists and is readable', svg !== '', String(pkg.icon));
+check('it is within the 256 KiB limit',
+  Buffer.byteLength(svg, 'utf8') <= MAX_ICON_BYTES, String(Buffer.byteLength(svg, 'utf8')));
+check('it is an SVG document',
+  /^<svg[\s>]/.test(svg.trim()) && svg.includes('</svg>'));
+// The shipped set is drawn on a 36-unit grid and displayed at 36px in a card and
+// 30px in a row, so a different grid renders at the wrong optical size.
+check('it uses the same 36-unit grid as the shipped icons',
+  svg.includes('viewBox="0 0 36 36"') && svg.includes('width="36"') && svg.includes('height="36"'));
+check('it draws more than a placeholder',
+  (svg.match(/<(path|rect|circle|ellipse|polygon|line)\b/g) || []).length >= 2);
+check('it carries colour rather than relying on the surrounding text colour',
+  svg.includes('fill="#') || svg.includes('fill="url(') || svg.includes('stroke="#'));
+check('it references nothing external',
+  !/https?:\/\//.test(svg.replace(/xmlns="[^"]*"/g, ''))
+    && !/xlink:href|<image\b|<use\b/.test(svg));
+check('it carries no script', !/<script\b/i.test(svg) && !/\bon\w+\s*=/i.test(svg));
+
 console.log('');
 if (failed.length > 0) {
   console.error('FAILED: ' + failed.length + ' of ' + (passed + failed.length) + ': ' + failed.join('; '));
   process.exit(1);
 }
-console.log('OK: ' + passed + ' checks — DSH can find, read and localize the plugin.');
+console.log('OK: ' + passed + ' checks — DSH can find, read, localize and illustrate the plugin.');

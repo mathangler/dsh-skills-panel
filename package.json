@@ -1,7 +1,8 @@
 {
   "name": "dsh-skills-panel",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "A Skills settings panel for DeepSeek Harness: browse global and per-project skills, search and install from skills.sh, toggle model invocation per skill, attach any skill back to its repository so it can be checked for updates, and update without a GitHub token.",
+  "icon": "./icon.svg",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -10,7 +11,8 @@
     "./client": "./lib/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json",
-    "./locale/*.json": "./locale/*.json"
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
   },
   "files": [
     "lib/index.js",
@@ -18,6 +20,7 @@
     "lib/client.js",
     "cordis.patch.yml",
     "locale/*.json",
+    "icon.svg",
     "README.md",
     "README.zh.md",
     "LICENSE"

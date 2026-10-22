@@ -11,8 +11,8 @@ model context, and get told when an installed skill changes upstream.
 > endorsed by DeepSeek. It uses only public DSH plugin surfaces.
 
 The page and its entry in the plugin list both follow the language DSH is set
-to — English and Chinese — through the locale files described under
-[Localized metadata](#localized-metadata).
+to — English and Chinese — and the plugin list shows its own icon. Both come from
+the package's declared [display metadata](#display-metadata).
 
 ---
 
@@ -186,7 +186,7 @@ it can get wrong: it can no longer move another installation's answer.
 
 ---
 
-## Localized metadata
+## Display metadata
 
 DSH shows a plugin's title and description in the plugin list from
 `locale/<language>.json` in the package:
@@ -203,8 +203,19 @@ other `.json` beside `en.json` is read as a language, using its filename as the
 language id, and the client picks one through the active locale's fallback chain
 (`zh-CN` → `zh` → `en`).
 
-`test/plugin-meta.test.mjs` asserts exactly these rules, because breaking any of
-them degrades the list rather than failing anything.
+The icon is `icon.svg` at the package root, declared as `"icon": "./icon.svg"` and
+also exported as `"./icon"`. It is drawn on the same 36-unit grid as the shipped
+icons, which DSH displays at 36px in a card and 30px in a row, so a different grid
+would render at the wrong optical size. DSH inlines it as a base64 data URL,
+which is why it references nothing external and carries its own colours rather
+than `currentColor`.
+
+Every one of those rules is silent when broken: the host falls back to the
+package name, the npm `description`, and its own generic artwork. So
+`test/plugin-meta.test.mjs` asserts each of them directly, including the
+language-id filename pattern, the requirement that English exists, that the
+languages actually differ from one another, and that the icon is a real
+self-contained drawing on the right grid.
 
 ---
 
