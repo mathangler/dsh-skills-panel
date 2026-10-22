@@ -10,6 +10,10 @@ model context, and get told when an installed skill changes upstream.
 > **Unofficial.** This is a third-party plugin. It is not affiliated with or
 > endorsed by DeepSeek. It uses only public DSH plugin surfaces.
 
+The page and its entry in the plugin list both follow the language DSH is set
+to — English and Chinese — through the locale files described under
+[Localized metadata](#localized-metadata).
+
 ---
 
 ## What it does
@@ -179,6 +183,28 @@ the same shape, so the two agree; a plugin update only takes effect in a process
 that restarts, and until it does, the half still running an older copy reports
 its own verdicts from the code it loaded. Those verdicts are now the only thing
 it can get wrong: it can no longer move another installation's answer.
+
+---
+
+## Localized metadata
+
+DSH shows a plugin's title and description in the plugin list from
+`locale/<language>.json` in the package:
+
+```json
+{ "meta": { "title": "Skills panel", "description": "…" } }
+```
+
+The file is resolved as `<package>/locale/en.json` **through the package's
+`exports` map**, so `"./locale/*.json"` has to be exported and `locale/*.json`
+has to be listed in `files` — otherwise the host cannot read it and the list
+quietly falls back to the bare package name and the npm `description`. Every
+other `.json` beside `en.json` is read as a language, using its filename as the
+language id, and the client picks one through the active locale's fallback chain
+(`zh-CN` → `zh` → `en`).
+
+`test/plugin-meta.test.mjs` asserts exactly these rules, because breaking any of
+them degrades the list rather than failing anything.
 
 ---
 

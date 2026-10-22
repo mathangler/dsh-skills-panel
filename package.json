@@ -1,6 +1,6 @@
 {
   "name": "dsh-skills-panel",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A Skills settings panel for DeepSeek Harness: browse global and per-project skills, search and install from skills.sh, toggle model invocation per skill, attach any skill back to its repository so it can be checked for updates, and update without a GitHub token.",
   "type": "module",
   "main": "lib/index.js",
@@ -9,19 +9,21 @@
     "./host-core": "./lib/host-core.js",
     "./client": "./lib/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
   },
   "files": [
     "lib/index.js",
     "lib/host-core.js",
     "lib/client.js",
     "cordis.patch.yml",
+    "locale/*.json",
     "README.md",
     "README.zh.md",
     "LICENSE"
   ],
   "scripts": {
-    "check": "node tools/host-core-check.mjs && node test/track-source.test.mjs && node test/upstream-baseline.test.mjs && node test/cheap-check.test.mjs && node test/client-load.test.mjs"
+    "check": "node tools/host-core-check.mjs && node test/plugin-meta.test.mjs && node test/track-source.test.mjs && node test/upstream-baseline.test.mjs && node test/cheap-check.test.mjs && node test/client-load.test.mjs"
   },
   "license": "MIT",
   "keywords": [
