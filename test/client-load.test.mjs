@@ -27,54 +27,13 @@ const check = (label, cond, detail) => {
   }
 };
 
-const NAV = 'data-dsh-skills-nav';
-
-/** Stand-in for one rendered settings-nav row. */
-function fakeButton(tagName, text) {
-  const attrs = new Set();
-  return {
-    nodeType: 1,
-    tagName,
-    textContent: text,
-    firstElementChild: tagName === null ? null : { tagName },
-    parentNode: null,
-    isConnected: true,
-    hasAttribute: (n) => attrs.has(n),
-    setAttribute: (n) => attrs.add(n),
-    querySelectorAll: () => [],
-    attrs,
-  };
-}
-const ourRowZh = fakeButton('SVG', '技能');
-const ourRowEn = fakeButton('SVG', 'Skills');
-const modelsRow = fakeButton('SVG', '模型');
-const notANavRow = fakeButton('SPAN', '技能');
-const allButtons = [ourRowZh, ourRowEn, modelsRow, notANavRow];
-
-let docScans = 0;
-const fakeDocument = {
-  nodeType: 9,
-  createElement: () => ({ dataset: {}, textContent: '', remove() {} }),
-  head: { appendChild: (t) => styleTags.push(t) },
-  body: {},
-  querySelectorAll: (sel) => {
-    docScans += 1;
-    return sel === 'button' ? allButtons : [];
-  },
-  querySelector: () => (ourRowZh.attrs.size > 0 ? ourRowZh : null),
-};
-
 const styleTags = [];
-let observerCallback = null;
-let observerTarget = null;
-globalThis.MutationObserver = class {
-  constructor(cb) { observerCallback = cb; }
-  observe(target) { observerTarget = target; }
-  disconnect() { observerCallback = null; }
-};
+const styleTag = { dataset: {}, textContent: '', remove() {} };
 
 const React = {
-  createElement: () => ({ type: 'stub' }),
+  // Real enough to walk: the icon is asserted on its element tree, so the
+  // factory has to keep the type, props and children it was handed.
+  createElement: (type, props, ...children) => ({ type, props: props || {}, children }),
   useState: () => [undefined, () => {}],
   useEffect: () => {},
   useContext: () => undefined,
@@ -84,19 +43,22 @@ const React = {
 let captured = null;
 const win = { __ModuleLoader__: { load: (m) => { captured = m; } } };
 // eslint-disable-next-line no-new-func
-new Function('window', 'document', src)(win, fakeDocument);
+new Function('window', 'document', src)(win, {
+  createElement: () => styleTag,
+  head: { appendChild: (t) => styleTags.push(t) },
+});
 
 // ── bundle contract ─────────────────────────────────────────────────────────
 console.log('--- bundle contract ---');
 check('registers on __ModuleLoader__', captured !== null);
 check('bundle id equals the package name', captured !== null && captured.id === pkg.name, captured && captured.id);
 
-let registered = null;
+const registered = {};
 const ctx = {
   effect: (fn) => { const d = fn(); return typeof d === 'function' ? d : () => {}; },
   slots: {
     inject: (n, fn) => fn(),
-    register: (reg, comp) => { registered = { reg, comp }; return () => {}; },
+    register: (reg, comp) => { registered[reg.name] = { reg, comp }; return () => {}; },
   },
   locale: {
     getSnapshot: () => ({ active: 'zh', locales: [{ id: 'en' }, { id: 'zh' }] }),
@@ -117,14 +79,49 @@ check('does not inject connection', Array.isArray(mod.inject) && !mod.inject.inc
 
 mod.apply(ctx);
 check('stylesheet injected', styleTags.length === 1, styleTags.length + ' tag(s)');
-const sheet = styleTags[0] ? String(styleTags[0].textContent) : '';
+const sheet = String(styleTag.textContent);
 check('stylesheet carries the panel rules', sheet.includes('.dshsk-wrap{'));
-// The nav glyph was once dropped while porting the panel; the only symptom was
-// the original gear quietly coming back.
-check('stylesheet carries the nav glyph rule', sheet.includes('button[' + NAV + '] > svg{display:none}'));
-check('stylesheet carries the nav mask', sheet.includes('mask:url("data:image/svg+xml'));
-check('registers the skills section', registered !== null && registered.reg.id === 'skills');
-check('section label is a thunk', registered !== null && typeof registered.reg.label === 'function');
+check('registers the skills section',
+  registered['settings.section'] !== undefined && registered['settings.section'].reg.id === 'skills');
+check('section label is a thunk',
+  registered['settings.section'] !== undefined
+    && typeof registered['settings.section'].reg.label === 'function');
+
+// ── the settings nav glyph ──────────────────────────────────────────────────
+// Reported symptom: the settings sidebar showed the generic settings gear. The
+// shell draws a section's glyph from `settings.section.icon`, matched by the
+// section's own id, and falls back to the gear when nothing answers — so an
+// unregistered third-party section can never draw its own.
+console.log('\n--- the settings nav glyph ---');
+const iconEntry = registered['settings.section.icon'];
+check('registers a settings.section.icon', iconEntry !== undefined);
+check('addressed by the section\'s own id',
+  iconEntry !== undefined && iconEntry.reg.id === registered['settings.section'].reg.id,
+  iconEntry === undefined ? 'not registered' : iconEntry.reg.id);
+
+const iconEl = iconEntry === undefined ? null : iconEntry.comp({ size: 16, active: false });
+check('the glyph is an svg', iconEl !== null && iconEl.type === 'svg', iconEl && iconEl.type);
+check('it fills the requested box', iconEl !== null && iconEl.props.width === 16 && iconEl.props.height === 16);
+check('drawn on the shipped 16-unit grid', iconEl !== null && iconEl.props.viewBox === '0 0 16 16');
+check('it inherits the row colour', iconEl !== null && iconEl.props.stroke === 'currentColor');
+check('outline style, matching the shipped glyphs',
+  iconEl !== null && iconEl.props.fill === 'none'
+    && iconEl.props.strokeLinecap === 'round' && iconEl.props.strokeLinejoin === 'round');
+check('hidden from assistive tech, since the row owns the label',
+  iconEl !== null && iconEl.props['aria-hidden'] === 'true');
+check('it is a cap, not a placeholder', iconEl !== null && iconEl.children.length === 3,
+  iconEl === null ? '' : String(iconEl.children.length));
+check('every part is a path with geometry',
+  iconEl !== null && iconEl.children.every((c) => c.type === 'path' && typeof c.props.d === 'string' && c.props.d !== ''));
+const bigIcon = iconEntry === undefined ? null : iconEntry.comp({ size: 32, active: true });
+check('it honours the size the row asks for', bigIcon !== null && bigIcon.props.width === 32);
+check('a missing size still draws', iconEntry !== undefined && iconEntry.comp({}).props.width === 16);
+
+// The DOM-recolouring approach this replaced must stay gone: it scanned the
+// document on every mutation and could still paint the gear first.
+check('no document-scanning glyph hack survives',
+  !src.includes('MutationObserver') && !src.includes('data-dsh-skills-nav')
+    && !sheet.includes('mask:url("data:image/svg+xml'));
 
 // ── the panel and the host agree on the method set ──────────────────────────
 console.log('\n--- client/host method agreement ---');
@@ -209,42 +206,9 @@ check('both languages describe the cheap check',
   src.includes("autoHint: 'Checks compare commit ids, so nothing is downloaded.'")
     && src.includes('检查只比对提交编号'));
 
-// ── nav marking ─────────────────────────────────────────────────────────────
-console.log('\n--- nav marking ---');
-check('marks the row labelled in the active locale', ourRowZh.attrs.has(NAV));
-check('marks the row labelled in the other locale', ourRowEn.attrs.has(NAV));
-check('leaves other sections alone', !modelsRow.attrs.has(NAV));
-check('ignores a button with the same text but no leading icon', !notANavRow.attrs.has(NAV));
-check('observer installed on the document body', observerCallback !== null && observerTarget === fakeDocument.body);
-
-const MARK = NAV;
-const fakeTextNode = { nodeType: 3, parentNode: null };
-const emptyInsert = { nodeType: 1, tagName: 'DIV', querySelectorAll: () => [] };
-const dialogInsert = { nodeType: 1, tagName: 'DIV', querySelectorAll: (s) => (s === 'button' ? [ourRowZh] : []) };
-
-ourRowZh.attrs.delete(MARK);
-const scansBeforeMount = docScans;
-observerCallback([{ addedNodes: [dialogInsert] }]);
-check('marks the row synchronously, with no timer in between', ourRowZh.attrs.has(MARK));
-check('the mount scan was scoped, not document-wide', docScans === scansBeforeMount,
-  docScans + ' vs ' + scansBeforeMount);
-
-const scansBeforeBurst = docScans;
-for (let i = 0; i < 200; i += 1) observerCallback([{ addedNodes: [fakeTextNode, emptyInsert] }]);
-check('steady state does no document-wide scan', docScans === scansBeforeBurst,
-  docScans + ' vs ' + scansBeforeBurst);
-
-ourRowZh.attrs.delete(MARK);
-const scansBeforeSweep = docScans;
-observerCallback([{ addedNodes: [emptyInsert] }]);
-check('nothing marked from an unrelated insert', !ourRowZh.attrs.has(MARK));
-await new Promise((r) => setTimeout(r, 700));
-check('backstop sweep finds the row after the delay',
-  ourRowZh.attrs.has(MARK) && docScans > scansBeforeSweep);
-
 console.log('');
 if (failed.length > 0) {
   console.error('FAILED: ' + failed.length + ' of ' + (passed + failed.length) + ': ' + failed.join('; '));
   process.exit(1);
 }
-console.log('OK: ' + passed + ' checks — bundle contract, method agreement, UI guards, nav marking.');
+console.log('OK: ' + passed + ' checks — bundle contract, method agreement, UI guards, settings nav glyph.');
