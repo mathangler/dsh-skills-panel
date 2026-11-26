@@ -194,7 +194,26 @@ it can get wrong: it can no longer move another installation's answer.
 
 ---
 
-## Display metadata
+## Updates keep running in the background
+
+Press **Update**, close the settings panel immediately, and the update still
+finishes.
+
+An update downloads a whole repository archive, unpacks it and rewrites the skill
+folder — tens of seconds to minutes on a link like this one. It used to be one
+HTTP request: closing the panel left the work running but the answer nowhere to
+land, so a **finished** update was indistinguishable from a failed one.
+
+Now the press only returns a job id. The work happens host-side, independent of
+both that request and the session that opened the panel. While the panel is open
+it shows the phase (reading upstream / comparing / downloading and writing);
+closing only stops the polling, and reopening asks once what is in flight,
+resumes whatever is still running and reports whatever already settled.
+
+So **closing the panel is not cancelling**. To actually stop one, restart the DSH
+process.
+
+
 
 DSH shows a plugin's title and description in the plugin list from
 `locale/<language>.json` in the package:

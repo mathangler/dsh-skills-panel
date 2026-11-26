@@ -304,7 +304,27 @@ try {
   v = await check();
   console.log('   status:', v.status);
   ok(v.status === 'update', 'the release is reported');
-  const upd = await h.update({ name: 'delta', projectPath: '' });
+/**
+ * Run an update the way the panel does.
+ *
+ * `update` starts a host-side job and answers immediately, because the work has
+ * to outlive the request that asked for it. A test wants the outcome, so this
+ * follows the job to its end and returns what the update concluded.
+ */
+const runUpdate = async (args) => {
+  const started = await h['update'](args);
+  if (!started || !started.ok) return started;
+  let job = started.job;
+  for (let i = 0; i < 1200 && job.state === 'running'; i += 1) {
+    await new Promise((done) => setTimeout(done, 10));
+    const poll = await h.job({ id: job.id });
+    if (poll.ok) job = poll.job;
+  }
+  if (job.state !== 'done') return { ok: false, error: job.error || 'the job never settled' };
+  return job.result;
+};
+
+  const upd = await runUpdate({ name: 'delta', projectPath: '' });
   ok(upd.ok === true && upd.upToDate === false, 'update applies it');
   ok((await localText()).includes('Delta body v2.'), 'the copy moved to v2');
   ok((await check()).status === 'current', 'and it reads as current again');
@@ -316,7 +336,7 @@ try {
   await upstream('Delta body v3.');
   v = await check();
   ok(v.status === 'update', 'the next release is reported with the switch off');
-  const upd2 = await h.update({ name: 'delta', projectPath: '' });
+  const upd2 = await runUpdate({ name: 'delta', projectPath: '' });
   ok(upd2.ok === true, 'updated with the switch off');
   ok(/^disable-model-invocation: true$/m.test(await localText()), 'the setting was carried across');
   ok((await check()).status === 'current', 'current afterwards');
@@ -327,7 +347,7 @@ try {
   v = await check();
   ok(v.status === 'current', 'editing the copy is not an upstream release');
   ok(v.locallyModified === true, 'and it is reported as a local edit');
-  const idle = await h.update({ name: 'delta', projectPath: '' });
+  const idle = await runUpdate({ name: 'delta', projectPath: '' });
   ok(idle.ok === true && idle.upToDate === true, 'with upstream unmoved there is nothing to apply');
   ok((await localText()).includes('Delta body v3, mine.'), 'and the edit is left alone, not replaced');
 
@@ -336,9 +356,9 @@ try {
   v = await check();
   ok(v.status === 'update', 'the release is reported');
   ok(v.locallyModified === true, 'alongside the local edit');
-  const refused = await h.update({ name: 'delta', projectPath: '' });
+  const refused = await runUpdate({ name: 'delta', projectPath: '' });
   ok(refused.ok === false && refused.locallyModified === true, 'update asks before discarding it');
-  const forced = await h.update({ name: 'delta', projectPath: '', force: true });
+  const forced = await runUpdate({ name: 'delta', projectPath: '', force: true });
   ok(forced.ok === true && forced.upToDate === false, 'and forcing it applies the release');
   ok((await localText()).includes('Delta body v4.'), 'the copy moved to v4');
 

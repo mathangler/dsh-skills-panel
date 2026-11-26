@@ -204,6 +204,27 @@ await define('acme/one', {
   'skills/one/scripts/a.mjs': 'export const a = 1;\n',
 });
 let h = handlers();
+
+/**
+ * Run an update the way the panel does.
+ *
+ * `update` starts a host-side job and answers immediately, because the work has
+ * to outlive the request that asked for it. A test wants the outcome, so this
+ * follows the job to its end and returns what the update concluded.
+ */
+const upd = async (args) => {
+  const started = await h.update(args);
+  if (!started || !started.ok) return started;
+  let job = started.job;
+  for (let i = 0; i < 1200 && job.state === 'running'; i += 1) {
+    await new Promise((done) => setTimeout(done, 10));
+    const poll = await h.job({ id: job.id });
+    if (poll.ok) job = poll.job;
+  }
+  if (job.state !== 'done') return { ok: false, error: job.error || 'the job never settled' };
+  if (process.env.DEBUG_UPD) console.log('    [job]', JSON.stringify({ state: job.state, phase: job.phase, result: job.result, error: job.error }).slice(0, 300));
+  return job.result;
+};
 let r = await h.install({ source: 'acme/one', skillId: 'one', target: 'global' });
 check('install succeeds', r.ok === true && r.dir === join(globalRoot, 'one'), r.error);
 check('the record is stamped with the current digest version', (await manifest(globalRoot)).skills.one.hashVersion === 3);
@@ -269,13 +290,13 @@ h = handlers();
 up = await h['check-updates']({});
 check('the check flags the local edit', up.updates.plain.locallyModified === true);
 
-const refused = await h.update({ name: 'plain' });
+const refused = await upd({ name: 'plain' });
 check('update refuses to replace it', refused.ok === false && refused.locallyModified === true,
   JSON.stringify(refused));
 check('the local edit is still there',
   (await readFile(join(globalRoot, 'plain', 'scripts', 'b.mjs'), 'utf8')).includes('mine'));
 
-const forced = await h.update({ name: 'plain', force: true });
+const forced = await upd({ name: 'plain', force: true });
 check('update proceeds once confirmed', forced.ok === true, forced.error);
 check('it reports having replaced local work', forced.replacedLocalChanges === true);
 check('the edit is gone', !(await readFile(join(globalRoot, 'plain', 'scripts', 'b.mjs'), 'utf8')).includes('mine'));
@@ -283,7 +304,7 @@ check('and it is current again', (await h['check-updates']({})).updates.plain.st
 
 await writeFile(join(globalRoot, 'plain', 'scripts', 'b.mjs'), 'export const b = 42; // keep\n', 'utf8');
 h = handlers();
-const noop = await h.update({ name: 'plain' });
+const noop = await upd({ name: 'plain' });
 check('with no upstream change an update does nothing at all',
   noop.ok === true && noop.upToDate === true, JSON.stringify(noop));
 check('and leaves the local edit alone',
@@ -309,7 +330,7 @@ up = await h['check-updates']({});
 // captured through one disagreed for good with repositories that omit it.
 check('flipping it is not a local edit', up.updates.toggle.locallyModified === false);
 check('and does not invent an update', up.updates.toggle.status === 'current', up.updates.toggle.status);
-const idle = await h.update({ name: 'toggle' });
+const idle = await upd({ name: 'toggle' });
 check('so an update is a plain no-op', idle.ok === true && idle.upToDate === true, JSON.stringify(idle));
 
 await upstream('acme/toggle', 'skills/toggle/SKILL.md',
@@ -319,7 +340,7 @@ up = await h['check-updates']({});
 check('a real change is still an update', up.updates.toggle.status === 'update', up.updates.toggle.status);
 check('and is not blocked as a local edit', up.updates.toggle.locallyModified === false);
 
-const repainted = await h.update({ name: 'toggle' });
+const repainted = await upd({ name: 'toggle' });
 check('the update applies without a second confirmation',
   repainted.ok === true && repainted.upToDate === false, repainted.error);
 check('the new body arrived', (await readToggle()).includes('Toggle body v2'));
@@ -335,7 +356,7 @@ check('a project install lands under the repository root', r.ok === true && r.di
 await upstream('acme/proj', 'skills/proj/SKILL.md',
   '---\nname: proj\ndescription: proj skill.\n---\n\nProj v2.\n');
 h = handlers();
-const moved = await h.update({ name: 'proj', projectPath: projectSub });
+const moved = await upd({ name: 'proj', projectPath: projectSub });
 check('the project skill updates in place', moved.ok === true && moved.dir === join(projectRoot, 'proj'), moved.error);
 check('no second copy appeared in the global root', !existsSync(join(globalRoot, 'proj')));
 
@@ -363,6 +384,51 @@ check('and it gains an upstream baseline of its own',
   typeof rec.upstreamHash === 'string' && rec.upstreamHash !== '');
 check('a digest another version wrote is not read as an upstream release',
   up.updates.one.status === 'current', up.updates.one.status);
+
+// ── an update is work that outlives the panel ──────────────────────────────
+//
+// Reported from real use: an update was started, the settings panel was closed,
+// and the update read as failed. The download and the folder rewrite used to be
+// the whole HTTP request, so a finished update had nowhere to report to. They
+// are a host-side job now, and these checks are the difference between "the
+// panel happened to stay open" and "the work does not care".
+console.log('\n== an update is work that outlives the panel');
+await upstream('acme/one', 'skills/one/scripts/a.mjs', 'export const a = 2024;\n');
+h = handlers();
+
+const queued = await h.update({ name: 'one', projectPath: '' });
+check('update answers with a job instead of the result', queued.ok === true && typeof queued.job === 'object',
+  JSON.stringify(queued));
+check('the job knows what it is doing', queued.ok === true && queued.job.kind === 'update' && queued.job.name === 'one');
+check('and starts out running', queued.ok === true && queued.job.state === 'running', queued.job && queued.job.state);
+
+// Nobody polls. This is the panel being closed.
+const settled = await (async () => {
+  let job = (await h.job({ id: queued.job.id })).job;
+  for (let i = 0; i < 1200 && job.state === 'running'; i += 1) {
+    await new Promise((done) => setTimeout(done, 5));
+    job = (await h.job({ id: queued.job.id })).job;
+  }
+  return job;
+})();
+check('the job finishes with the panel gone', settled.state === 'done', settled.state + ' ' + settled.error);
+check('and keeps its verdict for whoever asks later',
+  settled.result && settled.result.ok === true && settled.result.upToDate === false,
+  JSON.stringify(settled.result));
+
+const reread = await h.job({ id: queued.job.id });
+check('polling again returns the same stored answer',
+  reread.ok === true && reread.job.result.upToDate === false);
+check('the settled job reports how long it took', typeof reread.job.elapsedMs === 'number' && reread.job.elapsedMs >= 0);
+
+const registry = await h.jobs({});
+check('the registry lists it, newest first',
+  registry.ok === true && registry.jobs.length >= 1 && registry.jobs[0].id === queued.job.id,
+  String(registry.jobs && registry.jobs.length));
+check('an unknown job id is refused, not thrown',
+  (await h.job({ id: 'job-does-not-exist' })).ok === false);
+check('the panel\'s update helper still sees the same verdict',
+  (await upd({ name: 'one', projectPath: '' })).upToDate === true);
 
 console.log('');
 if (failed.length > 0) {

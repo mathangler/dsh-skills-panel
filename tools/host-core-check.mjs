@@ -289,7 +289,27 @@ async function run() {
   ok(check.updates.delta.status === 'update', 'the change is reported once the archive TTL expires');
 
   console.log('\n== update installs it, and keeps seeing the next change');
-  const upd = await h.update({ name: 'delta', projectPath: '' });
+/**
+ * Run an update the way the panel does.
+ *
+ * `update` starts a host-side job and answers immediately, because the work has
+ * to outlive the request that asked for it. A test wants the outcome, so this
+ * follows the job to its end and returns what the update concluded.
+ */
+const runUpdate = async (args) => {
+  const started = await h['update'](args);
+  if (!started || !started.ok) return started;
+  let job = started.job;
+  for (let i = 0; i < 1200 && job.state === 'running'; i += 1) {
+    await new Promise((done) => setTimeout(done, 10));
+    const poll = await h.job({ id: job.id });
+    if (poll.ok) job = poll.job;
+  }
+  if (job.state !== 'done') return { ok: false, error: job.error || 'the job never settled' };
+  return job.result;
+};
+
+  const upd = await runUpdate({ name: 'delta', projectPath: '' });
   ok(upd.ok === true && upd.upToDate === false, 'update ran');
   ok((await readFile(join(configuredRoot, 'delta', 'SKILL.md'), 'utf8')).includes('Delta body v3.'), 'the installed copy moved to v3');
   check = await h['check-updates']({ projectPath: '' });
@@ -300,11 +320,11 @@ async function run() {
   console.log('   status:', check.updates.delta.status);
   ok(check.updates.delta.status === 'update', 'a second change is not masked by the first answer');
 
-  const upd2 = await h.update({ name: 'delta', projectPath: '' });
+  const upd2 = await runUpdate({ name: 'delta', projectPath: '' });
   ok(upd2.ok === true && upd2.upToDate === false, 'the second update ran');
   ok((await readFile(join(configuredRoot, 'delta', 'SKILL.md'), 'utf8')).includes('Delta body v4.'), 'the installed copy moved to v4');
 
-  const idle = await h.update({ name: 'delta', projectPath: '' });
+  const idle = await runUpdate({ name: 'delta', projectPath: '' });
   ok(idle.ok === true && idle.upToDate === true, 'an unchanged skill reports up to date instead of rewriting');
 
   /** ------------------------------------------------------------- toggling */
