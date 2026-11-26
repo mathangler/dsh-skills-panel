@@ -191,6 +191,17 @@ check('state rides on aria-checked, and no parallel class survived',
   sheet.includes('[aria-checked="true"]') && !sheet.includes('dshsk-switch-on') && !sheet.includes('dshsk-knob'));
 check('a write in flight disables the control', src.includes('disabled: toggleBusy === s.name'));
 
+// ── a removed skill leaves the list at once ─────────────────────────────────
+// Reported symptom: after Remove the row stayed on screen, and a second Remove
+// answered "Skill not found" — the host's refresh had raced the watcher, so the
+// deleted skill was still in the catalog the reload returned. The success path
+// now drops the row itself before asking again.
+console.log('\n--- a removed row leaves the list at once ---');
+check('the success path drops the row as well as reloading',
+  /dropOne\(s\.name\);\s*load\(pp\);/.test(src));
+check('the drop keeps every other skill',
+  src.includes('return cur.filter(function (x) { return x.name !== name; });'));
+
 // ── the check asks, it does not download ────────────────────────────────────
 // Reported symptom: a check took four and a half minutes on a slow link because
 // it downloaded every tracked repository to compare content.

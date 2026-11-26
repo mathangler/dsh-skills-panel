@@ -31,7 +31,9 @@ the package's declared [display metadata](#display-metadata).
   shown read-only — the panel will not rewrite a file it shares with someone else.
 - **View** expands the skill's SKILL.md inline.
 - **Remove** deletes the skill folder, or only the link when the skill is a
-  junction (a plain `rmdir` cannot follow a junction into its target).
+  junction (a plain `rmdir` cannot follow a junction into its target). The row
+  goes away immediately, and a skill whose folder is gone is left out of the
+  list even if DSH's catalog has not caught up yet.
 - **Check all for updates** compares every tracked skill against its repository
   and marks the ones that changed.
 - A skill the panel did not install — one copied in, or installed by a script —

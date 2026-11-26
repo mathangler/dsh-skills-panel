@@ -156,6 +156,18 @@ let discoverRoot = configuredRoot;
 
 const agent = { id: 'agent-1', session: { header: { cwd: projectSub } } };
 
+/** A discovery snapshot the watcher has not dropped yet, or null for a fresh scan. */
+let staleCatalogue = null;
+
+/** One fresh scan, as DSH's filesystem provider would answer it. */
+async function freshCatalogue(options = {}) {
+  const out = discoverRoot === null ? [] : await catalogue(discoverRoot, 'user-dsh');
+  if (options.cwd) {
+    out.push(...(await catalogue(join(findProjectRoot(options.cwd), '.dsh', 'skills'), 'project-dsh')));
+  }
+  return out;
+}
+
 const ctx = {
   get(name) {
     if (name === 'agents') return { get: () => agent, list: () => [agent] };
@@ -187,14 +199,22 @@ const ctx = {
   },
   skills: {
     async list(options = {}) {
-      const out = discoverRoot === null ? [] : await catalogue(discoverRoot, 'user-dsh');
-      if (options.cwd) {
-        out.push(...(await catalogue(join(findProjectRoot(options.cwd), '.dsh', 'skills'), 'project-dsh')));
-      }
-      return out;
+      // When set, answer from the snapshot DSH's watcher has not invalidated
+      // yet. That is the race the panel's post-remove refresh used to lose.
+      if (staleCatalogue !== null) return staleCatalogue;
+      return freshCatalogue(options);
     },
     async get(name, options = {}) {
-      return (await this.list(options)).find((s) => s.name === name);
+      const found = (await this.list(options)).find((s) => s.name === name);
+      if (found === undefined) return undefined;
+      // DSH does not cache definitions: a load reads the file, so a deleted
+      // skill reports "not found" even while the catalog still lists it.
+      try {
+        await readFile(found.path, 'utf8');
+      } catch (e) {
+        return undefined;
+      }
+      return found;
     },
   },
 };
@@ -360,6 +380,32 @@ const runUpdate = async (args) => {
   const manifest = JSON.parse(await readFile(join(configuredRoot, '.skills-panel.json'), 'utf8'));
   ok(manifest.skills.zeta === undefined, 'the manifest entry went with it');
   ok(manifest.skills.delta !== undefined, 'the surviving skill stayed recorded');
+
+  /** ------------------------------------------- a refresh that races removal */
+
+  console.log('\n== a list answered before the watcher drops the deleted skill');
+  // DSH lists from a discovery cache and invalidates it from a filesystem
+  // watcher, which settles a moment after this panel's own `rm`. The refresh
+  // the panel runs right after a successful remove can therefore be answered
+  // from a catalog that still holds the skill, and the row used to stay until
+  // the page was reloaded. Freeze the catalog the watcher has not refreshed
+  // yet and check that the panel's list still stops advertising the skill.
+  const etaDir = join(configuredRoot, 'eta');
+  await mkdir(etaDir, { recursive: true });
+  await writeFile(join(etaDir, 'SKILL.md'), '---\nname: eta\ndescription: eta skill.\n---\n\nEta body.\n');
+  staleCatalogue = await freshCatalogue({});
+  ok(staleCatalogue.some((s) => s.name === 'eta'), 'the simulated catalog still holds the skill');
+  const beforeEta = await h.list({});
+  ok(beforeEta.skills.some((s) => s.name === 'eta'), 'it is listed while it exists');
+  const etaGone = await h.uninstall({ name: 'eta', projectPath: '' });
+  ok(etaGone.ok === true, 'the remove succeeded');
+  const afterEta = await h.list({});
+  ok(!afterEta.skills.some((s) => s.name === 'eta'), 'the next list does not advertise the removed skill');
+  ok(afterEta.skills.some((s) => s.name === 'delta'), 'the skills still on disk are untouched');
+  const etaAgain = await h.uninstall({ name: 'eta', projectPath: '' });
+  ok(etaAgain.ok === false && /not found/i.test(String(etaAgain.error)),
+    'a second remove still reports it is gone, as the stale catalog says nothing about the file');
+  staleCatalogue = null;
 
   /** --------------------------------------------------------------- report */
 }
