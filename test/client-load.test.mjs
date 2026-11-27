@@ -217,6 +217,33 @@ check('both languages describe the cheap check',
   src.includes("autoHint: 'Checks compare commit ids, so nothing is downloaded.'")
     && src.includes('检查只比对提交编号'));
 
+// ── the label for skills that ship inside a package ─────────────────────────
+// The badge used to read "非 DSH 所有" / "not DSH-owned", which said the
+// opposite of what it meant: these skills are usually DSH's own, shipped inside
+// the package or an installed plugin. What is true is that there is no folder in
+// a skills root to delete — so the panel can only read them.
+console.log('\n--- the built-in label ---');
+check('the badge says where it comes from', src.includes("shortNotOwned: 'built-in'") && src.includes("shortNotOwned: '内置'"));
+check('the old contradictory wording is gone',
+  !src.includes('not DSH-owned') && !src.includes('非 DSH 所有') && !src.includes('非自有'));
+check('the tooltip explains why it cannot be removed',
+  src.includes('no folder in a skills root to remove') && src.includes('技能目录里没有它的文件夹'));
+check('the badge is driven by the host\'s ownerNote, not guessed from the name',
+  src.includes('shortReason(s.ownerNote)') && src.includes("n2 === 'link'"));
+// A link is elsewhere too, but the entry here is still ours to take away, so it
+// keeps its own badge and its own delete hint.
+check('a link keeps its own badge and delete hint',
+  src.includes("shortLink: 'link'") && src.includes('delHintLink'));
+
+// ── the remove button is only offered where removal can work ────────────────
+// Offering it for a built-in skill taught the user that clicking it fails: the
+// host refuses, correctly, and the panel only found out afterwards.
+console.log('\n--- the remove button ---');
+check('removal is gated on the row being removable',
+  src.includes("const removable = s.ownerNote === undefined || s.ownerNote === 'link'"));
+check('the confirm step is behind that gate', src.includes('if (removable && confirmDel === s.name)'));
+check('and so is the plain remove button', src.includes('} else if (removable) {'));
+
 console.log('');
 if (failed.length > 0) {
   console.error('FAILED: ' + failed.length + ' of ' + (passed + failed.length) + ': ' + failed.join('; '));

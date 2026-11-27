@@ -165,6 +165,7 @@ async function freshCatalogue(options = {}) {
   if (options.cwd) {
     out.push(...(await catalogue(join(findProjectRoot(options.cwd), '.dsh', 'skills'), 'project-dsh')));
   }
+
   return out;
 }
 
@@ -205,6 +206,17 @@ const ctx = {
       return freshCatalogue(options);
     },
     async get(name, options = {}) {
+      // A skill supplied by an installed package whose files happen to sit under
+      // a skills root — the case the panel labels, and must refuse to remove
+      // because the folder belongs to that package rather than to the user.
+      if (name === 'pkgskill') {
+        return {
+          name: 'pkgskill',
+          source: 'dsh-skill-office',
+          path: join(configuredRoot, 'pkgskill', 'SKILL.md'),
+          description: 'ships inside a package.',
+        };
+      }
       const found = (await this.list(options)).find((s) => s.name === name);
       if (found === undefined) return undefined;
       // DSH does not cache definitions: a load reads the file, so a deleted
@@ -380,6 +392,17 @@ const runUpdate = async (args) => {
   const manifest = JSON.parse(await readFile(join(configuredRoot, '.skills-panel.json'), 'utf8'));
   ok(manifest.skills.zeta === undefined, 'the manifest entry went with it');
   ok(manifest.skills.delta !== undefined, 'the surviving skill stayed recorded');
+
+  console.log('\n== a skill that ships inside a package cannot be removed');
+  const pkgDir = join(configuredRoot, 'pkgskill');
+  await mkdir(pkgDir, { recursive: true });
+  await writeFile(join(pkgDir, 'SKILL.md'),
+    '---\nname: pkgskill\ndescription: ships inside a package.\n---\n\nBundled body.\n');
+  const pkgRefused = await h.uninstall({ name: 'pkgskill', projectPath: '' });
+  ok(pkgRefused.ok === false
+    && /ships with DSH or an installed plugin/.test(String(pkgRefused.error)),
+    'removal is refused, in the same words the label uses');
+  ok(existsSync(join(pkgDir, 'SKILL.md')), 'and nothing on disk was touched');
 
   /** ------------------------------------------- a refresh that races removal */
 
