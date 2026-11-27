@@ -239,10 +239,17 @@ check('a link keeps its own badge and delete hint',
 // Offering it for a built-in skill taught the user that clicking it fails: the
 // host refuses, correctly, and the panel only found out afterwards.
 console.log('\n--- the remove button ---');
-check('removal is gated on the row being removable',
-  src.includes("const removable = s.ownerNote === undefined || s.ownerNote === 'link'"));
-check('the confirm step is behind that gate', src.includes('if (removable && confirmDel === s.name)'));
-check('and so is the plain remove button', src.includes('} else if (removable) {'));
+// `ownerNote` is `null` on an ordinary skill, not undefined: checking only for
+// undefined hid the button on every row, which no test caught because no test
+// rendered a row. Pin both spellings and the shape of the arming swap.
+check('an ordinary skill is removable', src.includes("s.ownerNote === null || s.ownerNote === undefined"));
+check('a link is removable too', src.includes("|| s.ownerNote === 'link'"));
+check('the confirm replaces the remove button in place',
+  (src.match(/key: 'del'/g) || []).length >= 2
+    && src.includes("confirmDel === s.name") && src.includes("tt('confirmDel')"));
+check('the hint and the cancel sit outside the action bar',
+  src.includes("className: 'dshsk-hintrow'") && src.includes('deleteHint'));
+check('and the hint row is styled', sheet.includes('.dshsk-hintrow{'));
 
 console.log('');
 if (failed.length > 0) {
