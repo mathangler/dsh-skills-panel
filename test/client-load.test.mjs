@@ -247,8 +247,11 @@ check('a link is removable too', src.includes("|| s.ownerNote === 'link'"));
 check('the confirm replaces the remove button in place',
   (src.match(/key: 'del'/g) || []).length >= 2
     && src.includes("confirmDel === s.name") && src.includes("tt('confirmDel')"));
-check('the hint and the cancel sit outside the action bar',
-  src.includes("className: 'dshsk-hintrow'") && src.includes('deleteHint'));
+check('only the sentence leaves the action bar', src.includes("className: 'dshsk-hintrow'") && src.includes('deleteHint'));
+// The cancel undoes the confirm, so it belongs beside it — and after it, since
+// anything appended at the end of the bar moves nothing already there.
+check('the cancel stays in the action bar, after the confirm',
+  src.includes("key: 'cx'") && src.indexOf("key: 'cx'") > src.indexOf("key: 'del'"));
 check('and the hint row is styled', sheet.includes('.dshsk-hintrow{'));
 
 console.log('');
